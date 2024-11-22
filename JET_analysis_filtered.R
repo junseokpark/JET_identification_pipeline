@@ -1,45 +1,61 @@
-#!/data/users/mrocanin/R/R-3.2.3/bin/Rscript
-
 #### created by Alexandre Houy and Christel Goudot
 #### modified and adapted by Ares Rocanin-Arjo
+#### updated by Junseok Park (with Code Copilot)
 
 rm(list = ls(all.names = T))
 invisible(gc())
 graphics.off()
 
 tall = Sys.time()
-
-
-#!!!
-r.path    = _introducePATH_  # Local directory of R packages
-R         = paste(R.Version()$major, strsplit(x = as.character(R.Version()$minor), split = "\\.")[[1]][1], sep = ".")
-#!!!
-lib.local = paste( _instroducePATH_ ) #path to R library if specific
-
-#dir.create(lib.local, showWarnings = F, recursive = T)
-.libPaths(new = lib.local)
-
-
 options(useHTTPS = F, BioC_mirror="http://bioconductor.org")
-
-
-
+options(error = traceback)
 
 ##### Getops #####
 #--------------------------------------------------------------------------------
-
 suppressMessages(require(getopt))
-spec = matrix(c("chimeric", "c", 1, "character",
-                "junction", "j", 1, "character",
-                "genome",   "g", 1, "character",
-                "prefix",   "p", 1, "character",
-                "size",     "s", 1, "integer",
-                "libsize",	"l", 1, "integer",
-                "help",     "h", 0, "logical",
-                "verbose",  "v", 0, "logical"),
+spec = matrix(c("chimeric",      "c", 1, "character",
+                "junction",      "j", 1, "character",
+                "genome",        "g", 1, "character",
+                "prefix",        "p", 1, "character",
+                "size",          "s", 1, "integer",
+                "libsize",       "l", 1, "integer",
+                "help",          "h", 0, "logical",
+                "verbose",       "v", 0, "logical",
+                "rscript_dir",   "r", 1, "character",   # Rscript directory
+                "rlib_dir",      "lib", 1, "character", # R library directory
+                "repeats_file",  "f", 1, "character", # Repeatmasker file path
+				"gff_file",		 "gff", 1, "character",
+				"min_junc",		 "junc", 1, "character" ), # Gene info file
               byrow = TRUE,
-              ncol = 4);
-opt  = getopt(spec)
+              ncol = 4)
+opt = getopt(spec)
+
+#!!! Introduce Rscript path, library path, and repeats file based on passed arguments
+r.path <- opt$rscript_dir        # Path to the Rscript directory
+lib.local <- opt$rlib_dir        # Path to the R library directory
+repeats.file <- opt$repeats_file # Path to the repeatmasker file
+gff.file <- opt$gff_file
+minjunc <- opt$min_junc
+
+# Set the .libPaths to the provided library path if specified
+if (!is.null(lib.local)) {
+  dir.create(lib.local, showWarnings = FALSE, recursive = TRUE)
+  .libPaths(new = lib.local)
+}
+
+# Log the paths for debugging (if verbose is enabled)
+if (!is.null(opt$verbose) && opt$verbose) {
+  cat("Rscript Path: ", r.path, "\n")
+  cat("R Library Path: ", lib.local, "\n")
+  cat("Repeats File Path: ", repeats.file, "\n")
+}
+
+# proceed with using the repeats.file in your analysis
+if (!file.exists(repeats.file)) {
+  stop("The repeats file does not exist: ", repeats.file)
+}
+
+# Now you can proceed with the rest of your script
 
 if(! is.null(opt$help)) stop(getopt(spec, usage = T))
 
@@ -52,37 +68,28 @@ genome         = opt$genome                                   # Genome version
 libsize   	   = ifelse(is.null(opt$libsize), NA, opt$libsize) # libsize of the sample to normalize counts
 
 
-## cheking if the data exists
-
-
+## cheking if the data exist
 flag = F
 if(is.null(chimeric.file) & is.null(junctions.file)){             cat("/!\\ Error : At least one parameter (--chimeric or --junction) must be set /!\\\n", file = stderr()); flag = T }
 if(! is.null(chimeric.file)){ if(! file.exists(chimeric.file)){   cat("/!\\ Error : Argument --chimeric", chimeric.file, "not found /!\\\n", file = stderr());               flag = T } }
 if(! is.null(junctions.file)){ if(! file.exists(junctions.file)){ cat("/!\\ Error : Argument --junction", junctions.file, "not found /!\\\n", file = stderr());              flag = T } }
-if(! genome %in% c("hg19", "mm9", "mm10")){                       cat("/!\\ Error : Argument --genome", genome, "must be 'hg19', 'mm9' or 'mm10' /!\\\n", file = stderr());  flag = T }
+if(! genome %in% c("hg19", "hg38", "mm9", "mm10")){                       cat("/!\\ Error : Argument --genome", genome, "must be 'hg19', 'mm9' or 'mm10' /!\\\n", file = stderr());  flag = T }
 if(! is.integer(libsize)){                                        cat("/!\\ Error : Argument --libsize must be an integer /!\\\n", file = stderr());                         flag = T }                                                   
 if(flag) stop(getopt(spec, usage = T))
 
 
 
-
 ##### Libraries #####
 #--------------------------------------------------------------------------------
-
-
-if(verbose) cat("Loading packages")
+if (verbose) cat("Loading packages\n")
 t = Sys.time()
-ipak = function(list.packages){
-	list.new.packages =  list.packages[!(list.packages %in% installed.packages()[, "Package"])]
-	if (length(list.new.packages)){
-		suppressMessages(source("http://bioconductor.org/biocLite.R"))
-		biocLite(list.new.packages, dependencies = TRUE)
-	}
-	sapply(list.packages, require, character.only = T, quietly = T)
+
+# Function to load packages
+load_packages = function(list.packages) {
+  sapply(list.packages, require, character.only = TRUE, quietly = TRUE)
 }
 
-
-
+# List of required packages
 list.packages = c("GenomicFeatures",
                   "GenomicAlignments",
                   "data.table",
@@ -90,19 +97,16 @@ list.packages = c("GenomicFeatures",
                   "ggbio",
                   "ggplot2",
                   "biovizBase")
-ipak.res = ipak(list.packages = list.packages)
-if(verbose) cat("\tdone in ", round(difftime(Sys.time(), t, units = 'sec'), 2), "s\n", sep = "")
+
+# Load the packages
+load_packages(list.packages = list.packages)
+
+if (verbose) cat("\tdone in ", round(difftime(Sys.time(), t, units = 'sec'), 2), "s\n", sep = "")
 
 
-
-
-
-
-
-##### Calling refference annotations #####
+##### Calling reference annotations #####
 #--------------------------------------------------------------------------------
-
-if(genome %in% c("hg19")){
+if(genome %in% c("hg19", "hg38")){
 	organism    = "Human"
 	chromosomes = paste0("chr", c(1:22, "X"))
 	bs          = paste("BSgenome", "Hsapiens", "UCSC", genome, sep = ".")
@@ -112,27 +116,121 @@ if(genome %in% c("hg19")){
 	chromosomes = paste0("chr", c(1:19, "X"))
 	bs          = paste("BSgenome", "Mmusculus", "UCSC", genome, sep = ".")
 	txdb        = paste("TxDb", "Mmusculus", "UCSC", genome, "ensGene", sep = ".")
+} else {
+  stop("Unsupported genome: ", genome)
 }
-
-#!!!
-repeats.file = _introduce PATH/name_ #path to the reeatmasker obtained at UCSC as indicated in the README
 
 if(verbose) cat("Loading genome data")
 
 t = Sys.time()
-data(ideo)
-genome.ideo         = suppressMessages(ideo[[genome]])
-genome.ideo         = keepSeqlevels(x = genome.ideo, value = chromosomes ) #ADDING HERE THE OPTION PRUNING.MODE coarse! error option by default does no pruning and results with error in the "pipeline" #pruning.mode="coarse"
-genome(genome.ideo) = genome
-	
-ipak.gen            = ipak(c(txdb, bs))
+library(package = bs, character.only = TRUE)
+
+genome.ideo <- seqinfo(get(bs))
+
+# Debugging check
+if (!inherits(genome.ideo, "Seqinfo")) {
+    stop("Error: `genome.ideo` is not a Seqinfo object.")
+}
+
+# Define valid chromosomes
+valid_chromosomes <- paste0("chr", c(1:22, "X", "Y"))  # Include "Y" if necessary
+
+# Drop unwanted seqlevels
+genome.ideo <- dropSeqlevels(genome.ideo, setdiff(seqlevels(genome.ideo), valid_chromosomes))
+
+# Assign genome metadata
+genome(genome.ideo) <- genome
+
+# Debugging check
+cat("Genome metadata successfully loaded:\n")
+print(genome.ideo)
+
+
+# Define the TxDb package dynamically
+txdb_file <- paste0(txdb, ".sqlite")  # Define the path for the TxDb database
+
+# Load or create the TxDb object
+if (file.exists(txdb_file)) {
+    # Load TxDb from file
+    genome.txdb <- loadDb(txdb_file)
+} else {
+    # Create TxDb from GFF and save it
+    if (!requireNamespace("GenomicFeatures", quietly = TRUE)) {
+        BiocManager::install("GenomicFeatures")
+    }
+    library(GenomicFeatures)
+    genome.txdb <- makeTxDbFromGFF(gff.file, format = "gtf")
+    saveDb(genome.txdb, file = txdb_file)
+}
+
+# Debugging check for TxDb
+cat("TxDb object loaded successfully:\n")
+print(genome.txdb)
+
+if (seqlevelsStyle(genome.ideo) != seqlevelsStyle(genome.txdb)) {
+    seqlevelsStyle(genome.txdb) <- seqlevelsStyle(genome.ideo)
+}
+
+
+# Debugging checks
+cat("SeqlevelsStyle aligned.\n")
+print(seqlevelsStyle(genome.txdb))
+print(seqlevelsStyle(genome.ideo))
+
+# Filter TxDb seqlevels to match genome.ideo
+valid_seqlevels <- intersect(seqlevels(genome.txdb), seqlevels(genome.ideo))
+genome.txdb <- dropSeqlevels(genome.txdb, setdiff(seqlevels(genome.txdb), valid_seqlevels))
+
+# Debugging check for compatibility
+cat("Seqlevels compatibility check:\n")
+print(setdiff(seqlevels(genome.txdb), seqlevels(genome.ideo)))
+
+
+if (length(setdiff(seqlevels(genome.txdb), seqlevels(genome.ideo))) > 0) {
+    stop("Error: TxDb and genome.ideo seqlevels remain incompatible after alignment.")
+}
+
+# Prune TxDb to include only desired chromosomes
+genome.txdb <- dropSeqlevels(genome.txdb, setdiff(seqlevels(genome.txdb), chromosomes))
+
+# Final validation
+cat("TxDb compatibility check passed.\n")
+print(seqlevels(genome.txdb))
+
+
+# # Ensure compatibility between TxDb and genome
+# if (!all(seqlevels(genome.txdb) %in% seqlevels(genome.ideo))) {
+#     stop("Error: TxDb and genome.ideo seqlevels are incompatible.")
+# }
+
+# ## Add code here
+
+
+# # Prune genome.txdb to match desired chromosomes
+# genome.txdb <- keepSeqlevels(genome.txdb, value = chromosomes, pruning.mode = "coarse")
+
 genome.bs           = eval(parse(text = bs))
-genome.txdb         = eval(parse(text = txdb))
-genome.txdb         = keepSeqlevels(x = genome.txdb, value = chromosomes)
+
+# # Load or create TxDb
+# if (file.exists(txdb)) {
+#     txdb <- loadDb(get(txdb))
+# } else {
+#     library(GenomicFeatures) # Reload the library
+#     txdbGFF <- makeTxDbFromGFF(gff_file, format = "gtf")
+#     saveDb(txdbGFF, file = txdb)
+# }
+
+# # Debugging check for TxDb
+# cat("TxDb object loaded successfully:\n")
+# print(txdbGFF)
+
+# if (!all(seqlevels(txdb) %in% seqlevels(genome.ideo))) {
+#     stop("Error: TxDb and genome.ideo seqlevels are incompatible.")
+# }
+
+# genome.txdb         = keepSeqlevels(x = genome.txdb, value = chromosomes)
+
 if(verbose) cat("\tdone in ", round(difftime(Sys.time(), t, units = 'sec'), 2), "s\n", sep = "")
-
-
-
 
 ##### Setting Functions #####
 #--------------------------------------------------------------------------------
@@ -330,6 +428,12 @@ get.peptides = function(sequences, ids, order = c("R1R2", "R2R1")){
 	return(ids)
 }
 
+# Function to log error messages and stop the script
+log_error_and_stop <- function(message) {
+  write(message, file = "error.log")
+  stop(message)
+}
+
 
 
  
@@ -396,9 +500,9 @@ if(! is.null(chimeric.file)){
 	chimeric$pos.from = chimeric$pos.from - 1
 	chimeric$pos.to   = chimeric$pos.to + 1
 	if(verbose) cat("\tdone in ", round(difftime(Sys.time(), t, units = 'sec'), 2), "s\n", sep = "")
+} else {
+  log_error_and_stop("Error: chimeric.file is NULL")
 }
-
-
 
 junctions = NULL
 if(! is.null(junctions.file)){
@@ -426,6 +530,8 @@ if(! is.null(junctions.file)){
 	
 
 	if(verbose) cat("\tdone in ", round(difftime(Sys.time(), t, units = 'sec'), 2), "s\n", sep = "")
+} else {
+  log_error_and_stop("Error: junctions.file is NULL")
 }
 
 

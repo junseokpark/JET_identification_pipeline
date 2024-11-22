@@ -2,209 +2,263 @@
 
 #### created by Alexandre Houy and Christel Goudot
 #### modified and adapted by Ares Rocanin-Arjo
+#### updated by Junseok Park (with Code Copilot)
 
 #-------------------------------------------------------
 ##-- Configuration
 #-------------------------------------------------------
-
-#If necessary set up PATH envirovment or :
-
-##### Software path
-samtoolsBinDir= _introducePATH_ #path to samtools
-starBinDir= _introducePATH_ #path to STAR-2.5.3a/bin/Linux_x86_64 
-
 
 ################################################################################
 ##### Set variables
 day=`date +"%Y%m%d"`
 time=`date +"%Hh%Mm%Ss"`
 date="${day}_${time}"
-readLength=100
-organism="Mouse"
-genome="mm10"
-database="ensembl"
 
 
 ################################################################################
 ##### Configurate and set the following paths 
 
+# Function to display usage information
+usage() {
+    echo "Usage: $0 [options]"
+    echo "  -s, --samtools        Path to samtools binary directory (default: /usr/local/bin)"
+    echo "  -r, --star            Path to STAR binary directory (default: /usr/local/bin)"
+    echo "  -l, --read-length     Read length (default: 100)"
+    echo "  -o, --organism        Organism (Human/Mouse) (default: Human)"
+    echo "  -g, --genome          Genome (e.g., hg38, mm10) (default: hg38)"
+    echo "  -d, --database        Database (e.g., ensembl) (default: ensembl)"
+    echo "  -b, --data-dir        Base directory (default: /mnt/data/simul)"
+	echo "  -e, --ref-dir         Path to the reference files (default: /mnt/data/ref/hg38)"
+    echo "  -f, --fasta           Name of the reference FASTA file (default: Homo_sapiens_assembly38.fasta)"
+    echo "  -t, --gtf             Name of the reference GTF file (default: gencode.v46.annotation.gtf.gz)"
+    echo "  -m, --meta            Path to the metadata file (default: /mnt/data/simul/metadata.txt)"
+    echo "  -d, --threads         Number of CPU threads (default: 8)"
+    echo "  -h, --help            Display this help message and exit"
+    exit 1
+}
 
-dataDir= _introducePATH_ #path to the input data dir
-outputsDir= _introducePATH_ #path to the output results dir
+# Default values
+samtoolsBinDir="/usr/local/bin"
+starBinDir="/usr/local/bin"
+readLength=100
+organism="Human"
+genome="hg38"
+database="ensembl"
+dataDir="/mnt/data/simul"
+refDir="/mnt/data/ref/hg38"
+fastaFile="Homo_sapiens_assembly38.fasta"
+gtfGeneFile="gencode.v46.annotation.gtf"
+metaFile="/mnt/data/simul/metadata.txt"
+threads=8
 
-logDir= _introducePATH_ #path to the logs dir
+# Parsing command-line options
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        -s|--samtools) samtoolsBinDir="$2"; shift ;;
+        -r|--star) starBinDir="$2"; shift ;;
+        -l|--read-length) readLength="$2"; shift ;;
+        -o|--organism) organism="$2"; shift ;;
+        -g|--genome) genome="$2"; shift ;;
+        -d|--database) database="$2"; shift ;;
+        -b|--data-dir) dataDir="$2"; shift ;;
+		-e|--ref-dir) refDir="$2"; shift ;;
+        -f|--fasta) fastaFile="$2"; shift ;;
+        -t|--gtf) gtfGeneFile="$2"; shift ;;
+        -m|--meta) metaFile="$2"; shift ;;
+        -d|--threads) threads="$2"; shift ;;
+        -h|--help) usage ;;
+        *) echo "Unknown option: $1"; usage ;;
+    esac
+    shift
+done
 
-#path to the samplesinfo or metadata to perform a loop of submited jobs
-infoDir= _introducePATH_
+# Derived variables
+fastaFile="${refDir}/${fastaFile}"
+gtfGeneFile="${refDir}/${gtfGeneFile}"
+outputsDir="$dataDir/output" # Path to the output results directory
+logDir="$dataDir/log"       # Path to the logs directory
+starIndexesDir="$refDir/star/idx" # Path to the STAR indexes
+ErrorDir="$dataDir/err"     # Path to the error files directory
 
-#path to the star indexes. once done for always use the same
-starIndexesDir= _introducePATH_
+# Create necessary directories
+mkdir -p "${logDir}"
+mkdir -p "${outputsDir}"
+mkdir -p "${ErrorDir}"
+mkdir -p "${starIndexesDir}"
 
-#path to the refference mm10 DONE (genetic or repeatmasker)
-metadataDir= _introducePATH_
+# Setting up the log file
+logFile="${logDir}/STARrun_$(date +'%Y%m%d').log"
+touch "${logFile}"
 
-#path to the tmp output and error files -- set up more if needed
-ErrorDir= _introducePATH_
-
-
-#if needed create those directories
-mkdir -p ${logDir}
-
-
-
-################################################################################
-##### Calling DATA / creating files
-
-	infoFile= _introduce PATH/filename_ #example "${infoDir}/Name_of_your_MetadataFile.txt" 
-	
-	#path to your refference fasta File
-	fastaFile= _PATH/filename_FASTA_
-	
-	#path to your refference gtf File (genetic or repeatmasker)
-	gtfGeneFile=  _PATH/filename_gtf_  # for instance "${metadataDir}/Mus_musculus.GRCm38.91.modified_oct18.gtf"  
-	
-
-	#Setting a script log - optional
-	logFile="${logDir}/STARrun_${date}.log" #create a log File
-	touch ${logFile}
-
+# Display the configured paths and values
+echo "Configuration:"
+echo "  Samtools Directory: $samtoolsBinDir"
+echo "  STAR Directory: $starBinDir"
+echo "  Read Length: $readLength"
+echo "  Organism: $organism"
+echo "  Genome: $genome"
+echo "  Database: $database"
+echo "  Reference Directory: $refDir"
+echo "  Data Directory: $dataDir"
+echo "  Outputs Directory: $outputsDir"
+echo "  Log Directory: $logDir"
+echo "  Metadata File: $metaFile"
+echo "  STAR Indexes Directory: $starIndexesDir"
+echo "  Error Directory: $ErrorDir"
+echo "  FASTA File: $fastaFile"
+echo "  GTF File: $gtfGeneFile"
+echo "  Log File: $logFile"
 
 #-------------------------------------------------------
 ##-- STEP 0: STAR pre-indexing
 #-------------------------------------------------------
-
 ################################################################################
-##### Pre-processing refference 
-	threads=8
-	cmd="${starBinDir}/STAR \
-		--runThreadN ${threads} \
-		--runMode genomeGenerate \
-		--genomeDir ${starIndexesDir} \
-		--genomeFastaFiles ${fastaFile} \
-		--sjdbGTFfile ${gtfGeneFile} \
-		--sjdbOverhang ${readLength}"
-	echo ${cmd}
-	#eval "time ${cmd}"
+##### Pre-processing reference 
+
+if [ -d "$starIndexesDir" ] && [ "$(ls -A "$starIndexesDir")" ]; then
+    echo "STAR index already exists in $starIndexesDir. Proceeding to the next job."
+    # Call the next job or function here
+else
+    echo "No STAR index found in $starIndexesDir. You may need to create it."
+    # Call the STAR index creation command or function here
+
+    cmd="${starBinDir}/STAR \
+	--runThreadN ${threads} \
+	--runMode genomeGenerate \
+	--genomeDir ${starIndexesDir} \
+	--genomeFastaFiles ${fastaFile} \
+	--sjdbGTFfile ${gtfGeneFile} \
+	--sjdbOverhang ${readLength}"
+
+    {
+        echo "Starting command: ${cmd}"
+        start_time=$(date +%s)
+
+        # Run the command using eval and measure the time
+        eval "time ${cmd}" 2>&1 | tee -a "${logFile}"
+
+        end_time=$(date +%s)
+        runtime=$((end_time - start_time))
+
+        echo "Command finished. Processing time: ${runtime} seconds."
+
+    } | tee -a "${logFile}"
+fi
+
+
+#eval "time ${cmd}"
 
 
 #-------------------------------------------------------
 ##-- STEP 1: STAR alignment
 #-------------------------------------------------------
 
-	################################################################################
-	##### 
-##### Software path
-RprojectDir= _introducePATH_ #path to R
-netMHCpan4Dir= _introducePATH_ #path to NetMHCpan4
 
-################################################################################
-##### Set variables
-day=`date +"%Y%m%d"`
-time=`date +"%Hh%Mm%Ss"`
-date="${day}_${time}"
-readLength=100
-organism="Mouse"
-genome="mm10"
-database="ensembl"
+# Read rnaSample and name from the metaFile
+while IFS=',' read -r rnaSample name; do
+    # Example: rnaSample="5X", name="simreftetss270_5X"
+    echo -e "\e[1m${rnaSample}\t${name}\e[0m" >> "${logFile}"
 
+    echo "${rnaSample}"
+    echo "${name}"
 
-################################################################################
-##### Configurate and set the following paths 
+    ############################################################################
+    ##### Sample-specific Directories and Temporary Paths
 
-dataDir= _introducePATH_ #path to the input data directory
-outputsDir= _introducePATH_ #path to the output results directory
+    outputSampleDir="${outputsDir}/${name}_${day}"
+    mkdir -p "${outputSampleDir}"
 
-logDir= _introducePATH_ #path to the logs directory
-
-#path to the samplesInfo or metadata to perform a loop of submitted jobs
-infoDir= _introducePATH_
-
-#path to the star indexes. once done for always use the same
-starIndexesDir= _introducePATH_
-
-#path to the reference mm10 DONE (genetic or repeat masker)
-metadataDir= _introducePATH_
-
-#path to the tmp output and error files -- set up more if needed
-ErrorDir= _introducePATH_
+    # Temporary directory for STAR files
+    tmpDir="${outputsDir}/tmp"
+    mkdir -p $tmpDir
+    echo -e "\e[1m${rnaSample}\tCreating the output directory and setting tmpDir\e[0m" >> "${logFile}"
 
 
-#if needed create those directories
-mkdir -p ${logDir}
+    ############################################################################
+    ##### Defining Paths for Sample-Specific Data and Output Files
 
-# path to the directory with the JET_identification_classification_Rscript.
-RscriptDir= _introducePATH_
+    # Paths to sample FASTQ files
+    fastqR1Filegz="${dataDir}/${rnaSample}/${name}.1.fq.gz"
+    fastqR2Filegz="${dataDir}/${rnaSample}/${name}.2.fq.gz"
+    fastqR1File="${dataDir}/${rnaSample}/${name}.1.fq"
+    fastqR2File="${dataDir}/${rnaSample}/${name}.2.fq"
 
-	
-	while read rnaSample name #example: rnaSample="D804T348"; name="Thymus_4"
-	do
-		echo -e "\e[1m${rnaSample}\t${name}\e[0m" >> ${logFile}
+    # Print the paths to the FASTQ files
+    echo "fastqR1Filegz: ${fastqR1Filegz}"
+    echo "fastqR2Filegz: ${fastqR2Filegz}"
+    echo "fastqR1File: ${fastqR1File}"
+    echo "fastqR2File: ${fastqR2File}"
 
+    echo -e "\e[1m${rnaSample}\tReading FASTQ files: ${fastqR1File} and ${fastqR2File}\e[0m" >> "${logFile}"
 
+    # Prefix for naming output files
+    prefix="${outputSampleDir}/${name}"
 
-		############################################################################
-		#####  Sample - specific Directories path -- if needed
+    # Print the prefix
+    echo "prefix: ${prefix}"
 
-		outputSampleDir="${outputsDir}/${name}_${day}" 
-		mkdir -p ${outputSampleDir}
+    # Output files
+    samFile="${prefix}_Chimeric.out.sam"
+    bamFile="${prefix}_Aligned.sortedByCoord.out.bam"
+    bamChimericFile="${prefix}_Chimeric.out.bam"
+    bamChimericSortFile="${prefix}_Chimeric.out.sort.bam"
+    chimericFile="${prefix}_Chimeric.out.junction"
+    junctionFile="${prefix}_SJ.out.tab"
 
-		#tmp dir to save tmp STAR files 
-		tmpDir=
-		
-		echo -e "\e[1m${rnaSample}\t Creating the outputFiles and setting tmpDIR}\e[0m" >> ${logFile}
+    # Print all output file variables
+    echo "samFile: ${samFile}"
+    echo "bamFile: ${bamFile}"
+    echo "bamChimericFile: ${bamChimericFile}"
+    echo "bamChimericSortFile: ${bamChimericSortFile}"
+    echo "chimericFile: ${chimericFile}"
+    echo "junctionFile: ${junctionFile}"
 
+    echo -e "\e[1m${rnaSample}\tNaming output files:\e[0m" >> "${logFile}"
+    echo -e "\e[1m${rnaSample}\t\tPrefix: ${prefix}\e[0m" >> "${logFile}"
 
+    ############################################################################
+    ##### Check if FASTQ Files Exist and Decompress if Necessary
 
-		############################################################################
-		##### Calling sample-specific data and naming output files
-		
-		# path to sampleFastq
-	   	fastqR1Filegz= #example: "${dataDir}/${rnaSample}.R1.fastq.gz"
-		fastqR2Filegz= #example: "${dataDir}/${rnaSample}.R2.fastq.gz"
+    flag=false
 
-		echo -e "\e[1m${rnaSample}\t Reading fasta files\t${fastqR1File} i ${fastqR2File}\e[0m" >> ${logFile}
-		
+    # Decompress FASTQ files if needed
+    if [ ! -f "${fastqR1File}" ] && [ -f "${fastqR1Filegz}" ]; then
+        gunzip -c "${fastqR1Filegz}" > "${fastqR1File}"
+    fi
+    if [ ! -f "${fastqR2File}" ] && [ -f "${fastqR2Filegz}" ]; then
+        gunzip -c "${fastqR2Filegz}" > "${fastqR2File}"
+    fi
 
-		prefix="${outputSampleDir}/${name}" #setting up a prefix for each sample
+    # Print decompression status
+    echo "Decompression status for ${rnaSample}:"
+    echo "fastqR1File: ${fastqR1File}, exists: $(test -f "${fastqR1File}" && echo 'yes' || echo 'no')"
+    echo "fastqR2File: ${fastqR2File}, exists: $(test -f "${fastqR2File}" && echo 'yes' || echo 'no')"
 
-		#specificaly naming output files
-		samFile="${prefix}_Chimeric.out.sam"
-		bamFile="${prefix}_Aligned.sortedByCoord.out.bam"
-		bamChimericFile="${prefix}_Chimeric.out.bam"
-		bamChimericSortFile="${prefix}_Chimeric.out.sort.bam"
-		chimericFile="${prefix}_Chimeric.out.junction"
-		junctionFile="${prefix}_SJ.out.tab"
+    # Check if the decompressed or gzipped FASTQ files exist
+    if [ ! -f "${fastqR1File}" ] && [ ! -f "${fastqR1Filegz}" ]; then
+        echo "${fastqR1File} not found!" 1>&2
+        fastqR1File="NA"
+        flag=true
+    fi
+    if [ ! -f "${fastqR2File}" ] && [ ! -f "${fastqR2Filegz}" ]; then
+        echo "${fastqR2File} not found!" 1>&2
+        fastqR2File="NA"
+        flag=true
+    fi
 
+    # Skip to the next sample if any file is missing
+    if ${flag}; then
+        continue
+    fi
 
-		echo -e "\e[1m${rnaSample}\t Naming output files:\e[0m" >> ${logFile}
-		echo -e "\e[1m${rnaSample}\t\t ${prefix}\e[0m" >> ${logFile}
+    # Skip to the next sample if any file is missing
+    if ${flag}; then
+        continue
+    fi
 
+    echo -e "${name}\t${fastqR1File}\t${fastqR2File}" >> "${logFile}"
 
-
-		############################################################################
-		##### Test if files exist
-		
-		flag=false
-
-      	# OPTIONAL: decompress fastq files
-		if [ ! -f ${fastqR1File} -a -f ${fastqR1Filegz} ] ; then gunzip -c $fastqR1Filegz > $fastqR1File; fi
-		if [ ! -f ${fastqR2File} -a -f ${fastqR2Filegz} ] ; then gunzip -c $fastqR2Filegz > $fastqR2File; fi
-
-		#Cheking the sample fastq files exist
-		if [ ! -f ${fastqR1File} -a ! -f ${fastqR1Filegz} ] ; then echo "${fastqR1File} not found !" 1>&2 ; fastqR1File="NA" ; flag=true ; fi
-		if [ ! -f ${fastqR2File} -a ! -f ${fastqR2Filegz} ] ; then echo "${fastqR2File} not found !" 1>&2 ; fastqR2File="NA" ; flag=true ; fi
-	
-		
-		if ${flag} ; then continue; fi
-		echo -e "${name}\t${fastqR1File}\t${fastqR2File}" >> ${logFile}
-		
-
-
-		############################################################################
-		##### STAR alignment configuration
-	
-		threads=8
-		cmd="${starBinDir}/STAR \
+    cmd="${starBinDir}/STAR \
 				--quantMode GeneCounts \
 				--twopassMode Basic \
 				--runThreadN ${threads} \
@@ -221,18 +275,28 @@ RscriptDir= _introducePATH_
 				--outMultimapperOrder Random \
 				--outFilterMultimapNmax 1000 \
 				--winAnchorMultimapNmax 1000 \
-				--chimOutType WithinBAM \
-				--chimSegmentMin 10 \
+				--chimOutType WithinBAM SoftClip \
+				--chimSegmentMin 12 \
 				--chimJunctionOverhangMin 10 ; \
 			${samtoolsBinDir}/samtools view -@ ${threads} -b ${samFile} > ${bamChimericFile} ; \
 			${samtoolsBinDir}/samtools sort -@ ${threads} -o ${bamChimericSortFile} -O bam ${bamChimericFile} ; \
 			${samtoolsBinDir}/samtools index ${bamChimericSortFile} ; \
 			${samtoolsBinDir}/samtools index ${bamFile}"
-		
-		echo ${cmd}
-
-		date=`date +"%Y%m%d_%Hh%Mm%Ss"`
-		echo -e "${name}\tStar_rna:\t${starcmd}\t${date}" >> ${logFile}
 
 
-done < ${infoFile}
+    {
+        echo -e "${name}\tStar_rna:\t${starcmd}\t${date}" >> ${logFile}
+        echo "Starting command: ${cmd}"
+        start_time=$(date +%s)
+
+        # Run the command using eval and measure the time
+        eval "time ${cmd}" 2>&1 | tee -a "${logFile}"
+
+        end_time=$(date +%s)
+        runtime=$((end_time - start_time))
+
+        echo "Command finished. Processing time: ${runtime} seconds."
+
+    } | tee -a "${logFile}"
+
+done < "${metaFile}"

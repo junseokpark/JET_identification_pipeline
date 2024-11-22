@@ -2,196 +2,203 @@
 
 #### created by Alexandre Houy and Christel Goudot
 #### modified and adapted by Ares Rocanin-Arjo
-
+#### updated by Junseok Park (with Code Copilot)
 
 #-------------------------------------------------------
 ##-- Configuration
 #-------------------------------------------------------
 
-
-## Cluster Configuration
-## =================================================================================================
-
-#If necessary set up PATH environment (for instance: PATH=$PATH:/data/user/tools/CentOS/netMHCpan-3.0/) or :
-
-##### Software path
-RprojectDir= _introducePATH_ #path to R
-netMHCpan4Dir= _introducePATH_ #path to NetMHCpan4
-
 ################################################################################
 ##### Set variables
-day=`date +"%Y%m%d"`
-time=`date +"%Hh%Mm%Ss"`
+day=$(date +"%Y%m%d")
+time=$(date +"%Hh%Mm%Ss")
 date="${day}_${time}"
-readLength=100
-organism="Mouse"
-genome="mm10"
-database="ensembl"
 
+# Parsing command-line options
+usage() {
+    echo "Usage: $0 [options]"
+    echo "  -j, --jetprojectdir   Path to JET pipeline directory (default: /usr/local/bin)"
+    echo "  -d, --data-dir        Base directory for data (default: /mnt/data)"
+    echo "  -o, --outputs-dir     Output results directory"
+    echo "  -l, --log-dir         Logs directory"
+    echo "  -s, --star-dir        Path to the STAR indexes directory"
+    echo "  -m, --metadata        Path to the reference (genetic or repeat masker) directory"
+    echo "  -e, --error-dir       Path to store error files"
+    echo "  -rl, --read-length    Read length (default: 100)"
+    echo "  -og, --organism       Organism (e.g., Human, Mouse) (default: Mouse)"
+    echo "  -g, --genome          Genome (e.g., hg38, mm10) (default: mm10)"
+    echo "  -db, --database       Database (default: ensembl)"
+    echo "  --rlib-dir            Path to the R library directory (default: /usr/local/lib64/R/library)"
+    echo "  --repeats-file        Path to the repeats file (default: /mnt/data/ref/hg38/hg38.RepeatMasker-4.0.6-Dfam-2.0.fa.out)"
+    echo "  --gff-file            Path to the GFF file (default:/mnt/data/ref/hg38/Homo_sapiens.GRCh38.113.gtf)"
+    echo "  --min-junction        Minimum junction size (default:2e7)"
+    echo "  -h, --help            Display this help message and exit"
+    exit 1
+}
 
-################################################################################
-##### Configurate and set the following paths 
+# Default values for variables
+JETProjectDir="${JETProjectDir:-/home/junseokpark/apps/JET_identification_pipeline}"
+dataDir="${dataDir:-/mnt/data/simul}"
+starIndexesDir="${starIndexesDir:-/mnt/data/ref/hg38/star/idx}"
+metadata="${metadata:-/mnt/data/simul/metadata_step2.txt}"
+readLength="${readLength:-100}"
+organism="${organism:-Human}"
+genome="${genome:-hg38}"
+database="${database:-ensembl}"
+RlibDir="${RlibDir:-/usr/local/lib64/R/library}"  # Default R library directory
+repeatsFile="${repeatsFile:-/mnt/data/ref/hg38/repeatmasker_custom_output-4.0.6-Dfam-2.0.tsv}"  # Default repeats file
+gffFile="${gffFile:-/mnt/data/ref/hg38/Homo_sapiens.GRCh38.113.gtf}"
+minJunction="${minJunction:-2e7}"
 
-dataDir= _introducePATH_ #path to the input data directory
-outputsDir= _introducePATH_ #path to the output results directory
+# Derived variables from input variables
+outputsDir="${outputsDir:-$dataDir/output}" # Path to the output results directory
+logDir="${logDir:-$dataDir/log}"            # Path to the logs directory
+logFile="${logFile:-${logDir}/R_run_${date}.log}"
+ErrorDir="${ErrorDir:-$dataDir/err}"        # Path to the error files directory
 
-logDir= _introducePATH_ #path to the logs directory
+# Create necessary directories
+mkdir -p "${logDir}"
+mkdir -p "${outputsDir}"
+mkdir -p "${ErrorDir}"
+touch "${logFile}"
 
-#path to the samplesInfo or metadata to perform a loop of submitted jobs
-infoDir= _introducePATH_
+# Print the configured variables
+echo "Configuration:"
+echo "  JET Project Directory: ${JETProjectDir}"
+echo "  Data Directory: ${dataDir}"
+echo "  Outputs Directory: ${outputsDir}"
+echo "  Log Directory: ${logDir}"
+echo "  STAR Indexes Directory: ${starIndexesDir}"
+echo "  Metadata Directory: ${metadata}"
+echo "  Error Directory: ${ErrorDir}"
+echo "  Read Length: ${readLength}"
+echo "  Organism: ${organism}"
+echo "  Genome: ${genome}"
+echo "  Database: ${database}"
+echo "  R Library Directory: ${RlibDir}"
+echo "  Repeats File: ${repeatsFile}"
+echo "  GFF File: ${gffFile}"
 
-#path to the star indexes. once done for always use the same
-starIndexesDir= _introducePATH_
-
-#path to the reference mm10 DONE (genetic or repeat masker)
-metadataDir= _introducePATH_
-
-#path to the tmp output and error files -- set up more if needed
-ErrorDir= _introducePATH_
-
-
-#if needed create those directories
-mkdir -p ${logDir}
-
-# path to the directory with the JET_identification_classification_Rscript.
-RscriptDir= _introducePATH_
-
-
-################################################################################
-##### Calling DATA / creating files
-
-	infoFile= _introduce PATH/filename_ #example "${infoDir}/Name_of_your_MetadataFile.txt" 
-	
-
-	logFile="${logDir}/R_netMHCpan_run_${date}.log"
-	touch ${logFile}
-
+# Parse command-line options and override defaults if specified
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        -j|--jetprojectdir) JETProjectDir="$2"; shift ;;
+        -d|--data-dir) dataDir="$2"; shift ;;
+        -o|--outputs-dir) outputsDir="$2"; shift ;;
+        -l|--log-dir) logDir="$2"; shift ;;
+        -s|--star-dir) starIndexesDir="$2"; shift ;;
+        -m|--metadata) metadata="$2"; shift ;;
+        -e|--error-dir) ErrorDir="$2"; shift ;;
+        -rl|--read-length) readLength="$2"; shift ;;
+        -og|--organism) organism="$2"; shift ;;
+        -g|--genome) genome="$2"; shift ;;
+        -db|--database) database="$2"; shift ;;
+        --rlib-dir) RlibDir="$2"; shift ;;
+        --repeats-file) repeatsFile="$2"; shift ;;
+        --gff-file) gffFile="$2"; shift ;;
+        -h|--help) usage ;;
+        *) echo "Unknown option: $1"; usage ;;
+    esac
+    shift
+done
 
 
 #-------------------------------------------------------
 ##-- STEP 2: Identification and classification of junctions, selection of JETs
 #-------------------------------------------------------
 
+echo -e "Starting R -----" >> ${logFile}
 
-################################################################################
-##### 
-##### Software path
-RprojectDir= _introducePATH_ #path to R
-netMHCpan4Dir= _introducePATH_ #path to NetMHCpan4
-
-################################################################################
-##### Set variables
-day=`date +"%Y%m%d"`
-time=`date +"%Hh%Mm%Ss"`
-date="${day}_${time}"
-readLength=100
-organism="Mouse"
-genome="mm10"
-database="ensembl"
+# Read rnaSample, name, and day from the metadata file
+while IFS=',' read -r rnaSample name day; do
 
 
-################################################################################
-##### Configurate and set the following paths 
+    echo -e "\e[1m${rnaSample}\t${name}\e[0m" >> ${logFile}
 
-dataDir= _introducePATH_ #path to the input data directory
-outputsDir= _introducePATH_ #path to the output results directory
+    ############################################################################
+    ##### Sample-specific Directories path
+    outputSampleDir="${outputsDir}/${name}_${day}"
+    mkdir -p "${outputSampleDir}"
 
-logDir= _introducePATH_ #path to the logs directory
+    echo -e "\e[1m${name}\tCreating the outputFiles and setting tmpDIR\e[0m" >> ${logFile}
 
-#path to the samplesInfo or metadata to perform a loop of submitted jobs
-infoDir= _introducePATH_
+    ############################################################################
+    ##### Calling sample-specific data files
 
-#path to the star indexes. once done for always use the same
-starIndexesDir= _introducePATH_
+    prefix="${outputSampleDir}/${name}"
+    samFile="${prefix}_Chimeric.out.sam"
+    bamFile="${prefix}_Aligned.sortedByCoord.out.bam"
+    bamChimericFile="${prefix}_Chimeric.out.bam"
+    bamChimericSortFile="${prefix}_Chimeric.out.sort.bam"
+    chimericFile="${prefix}_Chimeric.out.junction"
+    junctionFile="${prefix}_SJ.out.tab"
+    logFinalOut="${prefix}_Log.final.out"
 
-#path to the reference mm10 DONE (genetic or repeat masker)
-metadataDir= _introducePATH_
+	# Print sample-specific data file paths
+    echo "Sample-Specific Data Files for ${name}:"
+    echo "  SAM File: $samFile"
+    echo "  BAM File: $bamFile"
+    echo "  BAM Chimeric File: $bamChimericFile"
+    echo "  BAM Chimeric Sorted File: $bamChimericSortFile"
+    echo "  Chimeric File: $chimericFile"
+    echo "  Junction File: $junctionFile"
+    echo "  STAR Log Final Output File: $logFinalOut"
 
-#path to the tmp output and error files -- set up more if needed
-ErrorDir= _introducePATH_
+    # Extract library size from STAR log
+    libsize=$(grep "Uniquely mapped reads number" ${logFinalOut} | sed -r 's/[\\t]+//g' | cut -d '|' -f2)
+    echo "Libsize: $libsize"
 
+    echo -e "\e[1m${name}\tCalling and naming output files:\e[0m" >> ${logFile}
+    echo -e "\e[1m${name}\t\tPrefix: ${prefix}\e[0m" >> ${logFile}
+    echo -e "\e[1m${name}\t\tLibrary size: ${libsize}\e[0m" >> ${logFile}
 
-#if needed create those directories
-mkdir -p ${logDir}
+    size=11
 
-# path to the directory with the JET_identification_classification_Rscript.
-RscriptDir= _introducePATH_
+    ############################################################################
+    ##### Naming sample-specific output files
+    fastaFile="${prefix}_Fusions.annotatedchimJunc${minJunction}.size${size}.fasta"
+    idsFile="${prefix}_Fusions.annotatedchimJunc${minJunction}.size${size}.ids.txt"
+    netmhcpanFile4="${prefix}_Fusions.annotatedchimJunc${minJunction}.size${size}.netmhcpan4.0.txt"
 
+    ############################################################################
+    ##### R analysis
 
-	echo -e "Starting R -----" >> ${logFile}
-	
-	while read rnaSample name day
-	do
-		echo -e "\e[1m${rnaSample}\t${name}\e[0m" >> ${logFile}
+    cmd="Rscript ${JETProjectDir}/JET_analysis_filtered.R  \
+        --chimeric ${chimericFile} \
+        --junction ${junctionFile} \
+        --genome ${genome} \
+        --size ${size} \
+        --libsize ${libsize} \
+        --prefix ${prefix} \
+        --verbose \
+        --rscript_dir ${JETProjectDir} \
+        --rlib_dir ${RlibDir} \
+        --repeats_file ${repeatsFile} \
+        --gff_file ${gffFile} \
+        --min_junc ${minJunction} 
+        "  # Pass the repeats file path
 
-		
-		############################################################################
-		#####  Sample - specific Directories path -- if needed
-		
-		outputSampleDir="${outputsDir}/${name}_${day}"
-		mkdir -p ${outputSampleDir} #making the directory if it do not exist
+    {
+        date=$(date +"%Y%m%d_%Hh%Mm%Ss")
+        echo -e "${name}\tR_fusion_rna\t${cmd}\t${date}" >> ${logFile}
 
-		echo -e "\e[1m${name}\t Creating the outputFiles and setting tmpDIR}\e[0m" >> ${logFile}
+        echo "Starting command: ${cmd}"
+        start_time=$(date +%s)
 
-		
+        # Run the command using eval and measure the time
+        eval "time ${cmd}" 2>&1 | tee -a "${logFile}"
 
-		############################################################################
-		##### Calling sample-specific data files
-	
+        end_time=$(date +%s)
+        runtime=$((end_time - start_time))
 
-		prefix="${outputSampleDir}/${name}" #setting up a prefix for each sample
-
-		#specificaly calling STAR output files
-		samFile="${prefix}_Chimeric.out.sam"
-		bamFile="${prefix}_Aligned.sortedByCoord.out.bam"
-		bamChimericFile="${prefix}_Chimeric.out.bam"
-		bamChimericSortFile="${prefix}_Chimeric.out.sort.bam"
-		chimericFile="${prefix}_Chimeric.out.junction"
-		junctionFile="${prefix}_SJ.out.tab"
-
-		logFinalOut="${prefix}_Log.final.out"
-		libsize="$(grep "Uniquely mapped reads number" ${logFinalOut} |  sed -r 's/[\\t]+//g' | cut -d '|' -f2)" 
-
-	
-
-		echo -e "\e[1m${name}\t Calling and naming output files:\e[0m" >> ${logFile}
-		echo -e "\e[1m${name}\t\t ${prefix}\e[0m" >> ${logFile}
-		echo -e "\e[1m${name}\t\t ${libsize}\e[0m" >> ${logFile}
-
-
-		size=11
-	
-			
-			############################################################################
-			##### Naming sample-specific output files
-	
-		fastaFile="${prefix}_Fusions.annotatedchimJunc2e7.size${size}.fasta"
-		idsFile="${prefix}_Fusions.annotatedchimJunc2e7.size${size}.ids.txt"
-		netmhcpanFile4="${prefix}_Fusions.annotatedchimJunc2e7.size${size}.netmhcpan4.0.txt"
+        echo "Command finished. Processing time: ${runtime} seconds."
 
 
 
-			############################################################################
-			##### R analysis
-		
-	
-		cmd="${RscriptDir}/JET_analysis_filtered.R  \
-			--chimeric ${chimericFile} \
-			--junction ${junctionFile} \
-			--genome ${genome} \
-			--size ${size} \
-			--libsize ${libsize} \
-			--prefix ${prefix} \
-			--verbose"
-		
-
-	      echo ${cmd} 
-		
-
-			date=`date +"%Y%m%d_%Hh%Mm%Ss"`
-			echo -e "${name}\t$R_fusion_rna\t${rcmd}\t${date}" >> ${logFile}
+    } | tee -a "${logFile}"
 
 
-done < ${infoFile}
 
-echo -e "END" >> ${logFile}	
+done < ${metadata}
+
+echo -e "END" >> ${logFile}

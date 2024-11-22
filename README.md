@@ -1,9 +1,14 @@
+[![ubuntu](https://img.shields.io/badge/ubuntu-18.04_LTS-E95420?style=flat&logo=ubuntu)](https://releases.ubuntu.com/18.04/)
+[![R](https://img.shields.io/badge/R-v3.6.3-3776AB?style=flat&logo=R&logoColor=276DC3)](https://cran.r-project.org/bin/windows/base/old/3.6.3/)
+
 # README for "JET identification pipeline" repository
 
 -------------------------------------------------------
 ###    Created by Alexandre Houy and Christel Goudot
 ###    Modified and adapted by Ares Rocanin-Arjo
 ###    				07/2022
+###    Modified by Junseok Park, 11/2024
+###    Major updates to enable fusion calling using Human hg38 (Step3 was excluded for the modification)
 -------------------------------------------------------
 
 This pipeline was used in the manuscript: Epigenetically-controlled tumor antigens derived from splice junctions between exons and transposable elements (Burbage, M. and Rocanin-Arjo, A.) to identify, quantify and select non-canonical splice junctions between exons and transposable elements (or JETs).
@@ -56,3 +61,12 @@ Please use the following information to cite:
 
 ### Contact the Author
 Ares Rocanin-Arjo: maria-ares.rocanin-arjo@curie.fr, Marianne Burbage: marianne.burbage@curie.fr and Christel Goudot: christel.goudot@curie.fr
+
+### Contact the modifier 
+[Junseok Park](mailto:junseok.park@childrens.harvard.edu)
+
+# Licenses
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC_BY--NC_4.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
+[![License: GPL v2](https://img.shields.io/badge/License-GPL_v2-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
