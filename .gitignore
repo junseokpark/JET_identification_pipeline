@@ -53,3 +53,6 @@ data/
 
 # Log
 Log.out
+
+# Reference file
+refs/repeatmasker_reformat.txt

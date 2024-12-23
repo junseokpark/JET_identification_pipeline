@@ -46,7 +46,8 @@ organism="${organism:-Human}"
 genome="${genome:-hg38}"
 database="${database:-ensembl}"
 RlibDir="${RlibDir:-/usr/local/lib64/R/library}"  # Default R library directory
-repeatsFile="${repeatsFile:-/mnt/data/ref/hg38/repeatmasker_custom_output-4.0.6-Dfam-2.0.tsv}"  # Default repeats file
+#repeatsFile="${repeatsFile:-/mnt/data/ref/hg38/repeatmasker_custom_output-4.0.6-Dfam-2.0.tsv}"  # Default repeats file
+repeatsFile="${repeatsFile:-/home/junseokpark/apps/JET_identification_pipeline/refs/repeatmasker_reformat.txt}"
 gffFile="${gffFile:-/mnt/data/ref/hg38/Homo_sapiens.GRCh38.113.gtf}"
 minJunction="${minJunction:-2e7}"
 

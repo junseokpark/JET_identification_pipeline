@@ -33,6 +33,7 @@ usage() {
     echo "  -t, --gtf             Name of the reference GTF file (default: gencode.v46.annotation.gtf.gz)"
     echo "  -m, --meta            Path to the metadata file (default: /mnt/data/simul/metadata.txt)"
     echo "  -d, --threads         Number of CPU threads (default: 8)"
+    echo "  -p, --output          Output directory"
     echo "  -h, --help            Display this help message and exit"
     exit 1
 }
@@ -44,11 +45,12 @@ readLength=100
 organism="Human"
 genome="hg38"
 database="ensembl"
-dataDir="/mnt/data/simul"
-refDir="/mnt/data/ref/hg38"
+dataDir="/mnt/nfs/sims/referenceTE/intron"
+refDir="/mnt/nfs/ref/hg38"
 fastaFile="Homo_sapiens_assembly38.fasta"
 gtfGeneFile="gencode.v46.annotation.gtf"
-metaFile="/mnt/data/simul/metadata.txt"
+metaFile="${dataDir}/metadata-fq.txt"
+outputsDir="${dataDir}/output"
 threads=8
 
 # Parsing command-line options
@@ -66,6 +68,7 @@ while [[ "$#" -gt 0 ]]; do
         -t|--gtf) gtfGeneFile="$2"; shift ;;
         -m|--meta) metaFile="$2"; shift ;;
         -d|--threads) threads="$2"; shift ;;
+        -p|--output) outputsDir="$2"; shift ;;
         -h|--help) usage ;;
         *) echo "Unknown option: $1"; usage ;;
     esac
@@ -75,8 +78,8 @@ done
 # Derived variables
 fastaFile="${refDir}/${fastaFile}"
 gtfGeneFile="${refDir}/${gtfGeneFile}"
-outputsDir="$dataDir/output" # Path to the output results directory
-logDir="$dataDir/log"       # Path to the logs directory
+#outputsDir="$dataDir/output" # Path to the output results directory
+logDir="$outputsDir/log"       # Path to the logs directory
 starIndexesDir="$refDir/star/idx" # Path to the STAR indexes
 ErrorDir="$dataDir/err"     # Path to the error files directory
 
@@ -155,17 +158,22 @@ fi
 
 
 # Read rnaSample and name from the metaFile
-while IFS=',' read -r rnaSample name; do
+while IFS=',' read -r rnaSample name name_prefix; do
     # Example: rnaSample="5X", name="simreftetss270_5X"
     echo -e "\e[1m${rnaSample}\t${name}\e[0m" >> "${logFile}"
 
     echo "${rnaSample}"
     echo "${name}"
+    echo "${name_prefix}"
 
     ############################################################################
     ##### Sample-specific Directories and Temporary Paths
 
-    outputSampleDir="${outputsDir}/${name}_${day}"
+    if [ ! -z "${name_prefix}" ]; then 
+        outputSampleDir="${outputsDir}/${name_prefix}_${name}_${day}"
+    else
+        outputSampleDir="${outputsDir}/${name}_${day}"
+    fi
     mkdir -p "${outputSampleDir}"
 
     # Temporary directory for STAR files
