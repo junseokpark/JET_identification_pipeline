@@ -51,6 +51,30 @@ repeatsFile="${repeatsFile:-/home/junseokpark/apps/JET_identification_pipeline/r
 gffFile="${gffFile:-/mnt/data/ref/hg38/Homo_sapiens.GRCh38.113.gtf}"
 minJunction="${minJunction:-2e7}"
 
+# Parse command-line options and override defaults if specified
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        -j|--jetprojectdir) JETProjectDir="$2"; shift ;;
+        -d|--data-dir) dataDir="$2"; shift ;;
+        -o|--outputs-dir) outputsDir="$2"; shift ;;
+        -l|--log-dir) logDir="$2"; shift ;;
+        -s|--star-dir) starIndexesDir="$2"; shift ;;
+        -m|--metadata) metadata="$2"; shift ;;
+        -e|--error-dir) ErrorDir="$2"; shift ;;
+        -rl|--read-length) readLength="$2"; shift ;;
+        -og|--organism) organism="$2"; shift ;;
+        -g|--genome) genome="$2"; shift ;;
+        -db|--database) database="$2"; shift ;;
+        --rlib-dir) RlibDir="$2"; shift ;;
+        --repeats-file) repeatsFile="$2"; shift ;;
+        --gff-file) gffFile="$2"; shift ;;
+        --min-junction) min-junction="$2"; shift ;; 
+        -h|--help) usage ;;
+        *) echo "Unknown option: $1"; usage ;;
+    esac
+    shift
+done
+
 # Derived variables from input variables
 outputsDir="${outputsDir:-$dataDir/output}" # Path to the output results directory
 logDir="${logDir:-$dataDir/log}"            # Path to the logs directory
@@ -80,30 +104,6 @@ echo "  R Library Directory: ${RlibDir}"
 echo "  Repeats File: ${repeatsFile}"
 echo "  GFF File: ${gffFile}"
 
-# Parse command-line options and override defaults if specified
-while [[ "$#" -gt 0 ]]; do
-    case $1 in
-        -j|--jetprojectdir) JETProjectDir="$2"; shift ;;
-        -d|--data-dir) dataDir="$2"; shift ;;
-        -o|--outputs-dir) outputsDir="$2"; shift ;;
-        -l|--log-dir) logDir="$2"; shift ;;
-        -s|--star-dir) starIndexesDir="$2"; shift ;;
-        -m|--metadata) metadata="$2"; shift ;;
-        -e|--error-dir) ErrorDir="$2"; shift ;;
-        -rl|--read-length) readLength="$2"; shift ;;
-        -og|--organism) organism="$2"; shift ;;
-        -g|--genome) genome="$2"; shift ;;
-        -db|--database) database="$2"; shift ;;
-        --rlib-dir) RlibDir="$2"; shift ;;
-        --repeats-file) repeatsFile="$2"; shift ;;
-        --gff-file) gffFile="$2"; shift ;;
-        -h|--help) usage ;;
-        *) echo "Unknown option: $1"; usage ;;
-    esac
-    shift
-done
-
-
 #-------------------------------------------------------
 ##-- STEP 2: Identification and classification of junctions, selection of JETs
 #-------------------------------------------------------
@@ -111,15 +111,28 @@ done
 echo -e "Starting R -----" >> ${logFile}
 
 # Read rnaSample, name, and day from the metadata file
-while IFS=',' read -r rnaSample name day; do
+while IFS=',' read -r rnaSample name name_prefix day; do
+
+    if [ ! -z "${name_prefix}" ]; then 
+        outputSampleDir="${outputsDir}/${name_prefix}_${name}_${day}"
+    else
+        outputSampleDir="${outputsDir}/${name}_${day}"
+    fi
+    mkdir -p "${outputSampleDir}"
+
+
+    # Temporary directory for STAR files
+    tmpDir="${outputsDir}/tmp"
+    mkdir -p $tmpDir
+    echo -e "\e[1m${rnaSample}\tCreating the output directory and setting tmpDir\e[0m" >> "${logFile}"
 
 
     echo -e "\e[1m${rnaSample}\t${name}\e[0m" >> ${logFile}
 
     ############################################################################
     ##### Sample-specific Directories path
-    outputSampleDir="${outputsDir}/${name}_${day}"
-    mkdir -p "${outputSampleDir}"
+    #outputSampleDir="${outputsDir}/${name}_${day}"
+    #mkdir -p "${outputSampleDir}"
 
     echo -e "\e[1m${name}\tCreating the outputFiles and setting tmpDIR\e[0m" >> ${logFile}
 

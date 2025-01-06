@@ -1,0 +1,6 @@
+/mnt/nfs/sims/nonReferenceTE/AluY,metadata_add.txt
+/mnt/nfs/sims/nonReferenceTE/L1HS,metadata_add.txt
+/mnt/nfs/sims/nonReferenceTE/LTR5,metadata_add.txt
+/mnt/nfs/sims/nonReferenceTE/SVA_F,metadata_add.txt
+/mnt/nfs/sims/referenceTE/intron,metadata_add.txt
+/mnt/nfs/sims/referenceTE/TSS,metadata_add.txt

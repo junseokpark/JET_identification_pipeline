@@ -56,3 +56,5 @@ Log.out
 
 # Reference file
 refs/repeatmasker_reformat.txt
+refs/TxDb.Hsapiens.UCSC.hg38.ensGene.sqlite
+TxDb.Hsapiens.UCSC.hg38.ensGene.sqlite

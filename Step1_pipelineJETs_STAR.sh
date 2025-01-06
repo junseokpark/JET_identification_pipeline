@@ -39,19 +39,19 @@ usage() {
 }
 
 # Default values
-samtoolsBinDir="/usr/local/bin"
-starBinDir="/usr/local/bin"
-readLength=100
-organism="Human"
-genome="hg38"
-database="ensembl"
-dataDir="/mnt/nfs/sims/referenceTE/intron"
-refDir="/mnt/nfs/ref/hg38"
-fastaFile="Homo_sapiens_assembly38.fasta"
-gtfGeneFile="gencode.v46.annotation.gtf"
-metaFile="${dataDir}/metadata-fq.txt"
-outputsDir="${dataDir}/output"
-threads=8
+
+# Default values for variables following the example style
+samtoolsBinDir="${samtoolsBinDir:-/usr/local/bin}"
+starBinDir="${starBinDir:-/usr/local/bin}"
+readLength="${readLength:-100}"
+organism="${organism:-Human}"
+genome="${genome:-hg38}"
+database="${database:-ensembl}"
+dataDir="${dataDir:-/mnt/nfs/sims/referenceTE/intron}"
+refDir="${refDir:-/mnt/nfs/ref/hg38}"
+fastaFile="${fastaFile:-Homo_sapiens_assembly38.fasta}"
+gtfGeneFile="${gtfGeneFile:-gencode.v46.annotation.gtf}"
+threads="${threads:-8}"
 
 # Parsing command-line options
 while [[ "$#" -gt 0 ]]; do
@@ -74,6 +74,13 @@ while [[ "$#" -gt 0 ]]; do
     esac
     shift
 done
+
+# Ensure the default values are properly updated when using related variables
+#metaFile="${dataDir}/metadata-fq.txt"
+#outputsDir="${dataDir}/output"
+metaFile="${metaFile:-${dataDir}/metadata-fq.txt}"
+outputsDir="${outputsDir:-${dataDir}/output}"
+
 
 # Derived variables
 fastaFile="${refDir}/${fastaFile}"
@@ -158,7 +165,7 @@ fi
 
 
 # Read rnaSample and name from the metaFile
-while IFS=',' read -r rnaSample name name_prefix; do
+while IFS=',' read -r rnaSample name name_prefix temp_day; do
     # Example: rnaSample="5X", name="simreftetss270_5X"
     echo -e "\e[1m${rnaSample}\t${name}\e[0m" >> "${logFile}"
 
