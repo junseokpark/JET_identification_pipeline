@@ -58,3 +58,4 @@ Log.out
 refs/repeatmasker_reformat.txt
 refs/TxDb.Hsapiens.UCSC.hg38.ensGene.sqlite
 TxDb.Hsapiens.UCSC.hg38.ensGene.sqlite
+tools/Miniforge3-Linux-x86_64.sh
